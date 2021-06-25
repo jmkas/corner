@@ -1,0 +1,42 @@
+version: '3.7'
+
+services:
+  nginx:
+    build: /root/nginx
+    ports:
+      - 80:80
+    volumes:
+      - static_volume:/home/app/corner_case/static
+
+    depends_on:
+      - web
+    restart: "on-failure"
+  web:
+    build: . #build the image for the web service from the dockerfile in parent directory
+    command: sh -c "python manage.py makemigrations &&
+                    python manage.py migrate &&
+                    python manage.py collectstatic --noinput &&
+                    gunicorn corner_case.wsgi:application --bind 0.0.0.0:${APP_PORT}"
+    volumes:
+      - .:/corner_case:rw # map data and files from parent directory in host to microservice directory in docker containe
+      - static_volume:/home/app/corner_case/static
+
+    env_file:
+      - .env
+    image: corner_case
+    depends_on:
+      - db
+    expose:
+      - 8000
+    restart: "on-failure"
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    ports:
+      - "5432:5432"
+
+volumes:
+  static_volume:
